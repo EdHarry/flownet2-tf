@@ -16,6 +16,7 @@ def main():
         input_a_path=FLAGS.input_a,
         input_b_path=FLAGS.input_b,
         out_path=FLAGS.out,
+        save_flo=True
     )
 
 

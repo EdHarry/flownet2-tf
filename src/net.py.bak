@@ -8,7 +8,6 @@ from scipy.misc import imread, imsave
 import uuid
 from .training_schedules import LONG_SCHEDULE
 slim = tf.contrib.slim
-from PIL import Image
 
 
 class Mode(Enum):
@@ -16,7 +15,9 @@ class Mode(Enum):
     TEST = 2
 
 
-class Net(object, metaclass=abc.ABCMeta):
+class Net(object):
+    __metaclass__ = abc.ABCMeta
+
     def __init__(self, mode=Mode.TRAIN, debug=False):
         self.global_step = slim.get_or_create_global_step()
         self.mode = mode
@@ -37,28 +38,19 @@ class Net(object, metaclass=abc.ABCMeta):
         """
         return
 
-    def test(self, checkpoint, input_a, input_b, out_path, save_image=True, save_flo=False):
-        # #input_a = imread(input_a_path)
-        # #input_b = imread(input_b_path)
+    def test(self, checkpoint, input_a_path, input_b_path, out_path, save_image=True, save_flo=False):
+        input_a = imread(input_a_path)
+        input_b = imread(input_b_path)
 
-        # # Convert from RGB -> BGR
-        # input_a = input_a[..., [2, 1, 0]]
-        # input_b = input_b[..., [2, 1, 0]]
+        # Convert from RGB -> BGR
+        input_a = input_a[..., [2, 1, 0]]
+        input_b = input_b[..., [2, 1, 0]]
 
-        # # Scale from [0, 255] -> [0.0, 1.0] if needed
-        # if input_a.max() > 1.0:
-        #     input_a = input_a / 255.0
-        # if input_b.max() > 1.0:
-        #     input_b = input_b / 255.0
-
-        rgb_im = Image.new('RGB', input_a.shape)
-        input_a = Image.fromarray((input_a * 255).astype('uint8'))
-        input_b = Image.fromarray((input_b * 255).astype('uint8'))
-
-        rgb_im.paste(input_a)
-        input_a = np.array(rgb_im)[..., [2, 1, 0]] / 255.0
-        rgb_im.paste(input_b)
-        input_b = np.array(rgb_im)[..., [2, 1, 0]] / 255.0
+        # Scale from [0, 255] -> [0.0, 1.0] if needed
+        if input_a.max() > 1.0:
+            input_a = input_a / 255.0
+        if input_b.max() > 1.0:
+            input_b = input_b / 255.0
 
         # TODO: This is a hack, we should get rid of this
         training_schedule = LONG_SCHEDULE
@@ -76,16 +68,15 @@ class Net(object, metaclass=abc.ABCMeta):
             saver.restore(sess, checkpoint)
             pred_flow = sess.run(pred_flow)[0, :, :, :]
 
-            # unique_name = 'flow-' + str(uuid.uuid4())
-            # if save_image:
-            #     flow_img = flow_to_image(pred_flow)
-            #     full_out_path = os.path.join(out_path, unique_name + '.png')
-            #     imsave(full_out_path, flow_img)
+            unique_name = 'flow-' + str(uuid.uuid4())
+            if save_image:
+                flow_img = flow_to_image(pred_flow)
+                full_out_path = os.path.join(out_path, unique_name + '.png')
+                imsave(full_out_path, flow_img)
 
-            # if save_flo:
-            #     full_out_path = os.path.join(out_path, unique_name + '.flo')
-            #     write_flow(pred_flow, full_out_path)
-            return pred_flow
+            if save_flo:
+                full_out_path = os.path.join(out_path, unique_name + '.flo')
+                write_flow(pred_flow, full_out_path)
 
     def train(self, log_dir, training_schedule, input_a, input_b, flow, checkpoints=None):
         tf.summary.image("image_a", input_a, max_outputs=2)
@@ -110,7 +101,7 @@ class Net(object, metaclass=abc.ABCMeta):
         tf.summary.scalar('loss', total_loss)
 
         if checkpoints:
-            for (checkpoint_path, (scope, new_scope)) in checkpoints.items():
+            for (checkpoint_path, (scope, new_scope)) in checkpoints.iteritems():
                 variables_to_restore = slim.get_variables(scope=scope)
                 renamed_variables = {
                     var.op.name.split(new_scope + '/')[1]: var
